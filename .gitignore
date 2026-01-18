@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Credentials - NEVER commit these!
+credentials.ini
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Build output
+dist/
+build/
+
+# Data directory (for add-on)
+/data/
+credentals.ini

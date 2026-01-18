@@ -1,0 +1,35 @@
+# Home Assistant Add-on Configuration
+name: "Claude Voice Assistant Widget"
+description: "A self-contained voice assistant web interface with wake word detection, STT/TTS integration, and media receiver functionality"
+version: "1.0.0"
+slug: "claude_voice_widget"
+init: false
+arch:
+  - amd64
+  - aarch64
+  - armv7
+  - armhf
+  - i386
+startup: application
+boot: auto
+ingress: true
+ingress_port: 8099
+ingress_entry: /
+panel_icon: mdi:microphone-message
+panel_title: Voice Widget
+homeassistant_api: true
+auth_api: true
+options:
+  device_name: "Voice Widget"
+  wake_word: "hey_jarvis"
+  stt_timeout: 15
+  auto_start_listening: false
+schema:
+  device_name: str
+  wake_word: str
+  stt_timeout: int
+  auto_start_listening: bool
+ports:
+  8099/tcp: null
+ports_description:
+  8099/tcp: "Web interface port (ingress)"

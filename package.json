@@ -1,0 +1,16 @@
+{
+  "name": "claude-voice-widget",
+  "version": "1.0.0",
+  "description": "Home Assistant Voice Assistant Widget with Wake Word Detection",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.14.2",
+    "http-proxy-middleware": "^2.0.6",
+    "openwakeword-wasm-browser": "^0.1.0"
+  }
+}

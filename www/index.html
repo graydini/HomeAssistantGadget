@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#03a9f4">
+    <meta name="description" content="Home Assistant Voice Assistant Widget">
+    <title>Voice Assistant Widget</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <style>
+        :root {
+            --primary-color: #03a9f4;
+            --primary-dark: #0288d1;
+            --background: #1a1a2e;
+            --surface: #16213e;
+            --surface-light: #1f3460;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --success: #4caf50;
+            --warning: #ff9800;
+            --error: #f44336;
+            --listening: #4caf50;
+            --processing: #ff9800;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--background);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: var(--surface);
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+        
+        .header h1 {
+            font-size: 1.2rem;
+            font-weight: 500;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--error);
+            transition: background 0.3s;
+        }
+        
+        .status-dot.connected {
+            background: var(--success);
+        }
+        
+        .status-dot.listening {
+            background: var(--listening);
+            animation: pulse 1s infinite;
+        }
+        
+        .status-dot.processing {
+            background: var(--processing);
+            animation: pulse 0.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.2); }
+        }
+        
+        .main-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            gap: 1rem;
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        .device-section {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 1rem;
+        }
+        
+        .device-section label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .device-name-input {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .device-name-input input {
+            flex: 1;
+            background: var(--surface-light);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+        
+        .device-name-input input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        
+        .device-name-input button {
+            background: var(--primary-color);
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 1.5rem;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .device-name-input button:hover {
+            background: var(--primary-dark);
+        }
+        
+        .voice-section {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+        }
+        
+        .mic-button {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, var(--surface-light), var(--surface));
+            border: 3px solid var(--primary-color);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            position: relative;
+        }
+        
+        .mic-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(3, 169, 244, 0.3);
+        }
+        
+        .mic-button.listening {
+            border-color: var(--listening);
+            box-shadow: 0 0 40px rgba(76, 175, 80, 0.4);
+            animation: listening-pulse 1.5s infinite;
+        }
+        
+        .mic-button.processing {
+            border-color: var(--processing);
+            box-shadow: 0 0 40px rgba(255, 152, 0, 0.4);
+        }
+        
+        @keyframes listening-pulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(76, 175, 80, 0.4); }
+            50% { box-shadow: 0 0 50px rgba(76, 175, 80, 0.6); }
+        }
+        
+        .mic-icon {
+            width: 48px;
+            height: 48px;
+            fill: var(--primary-color);
+            transition: fill 0.3s;
+        }
+        
+        .mic-button.listening .mic-icon {
+            fill: var(--listening);
+        }
+        
+        .mic-button.processing .mic-icon {
+            fill: var(--processing);
+        }
+        
+        .voice-status {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+        
+        .wakeword-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1.25rem;
+            background: var(--surface-light);
+            border-radius: 25px;
+            cursor: pointer;
+        }
+        
+        .toggle-switch {
+            width: 44px;
+            height: 24px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            position: relative;
+            transition: background 0.3s;
+        }
+        
+        .toggle-switch.active {
+            background: var(--success);
+        }
+        
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.3s;
+        }
+        
+        .toggle-switch.active::after {
+            transform: translateX(20px);
+        }
+        
+        .response-section {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 1.5rem;
+            min-height: 100px;
+        }
+        
+        .response-section h3 {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .response-text {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        
+        .response-text.empty {
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+        
+        .transcript-section {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 1rem;
+        }
+        
+        .transcript-section h3 {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .transcript-text {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+        
+        .media-section {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 1rem;
+            display: none;
+        }
+        
+        .media-section.active {
+            display: block;
+        }
+        
+        .media-section h3 {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .media-player {
+            width: 100%;
+            border-radius: 8px;
+            background: #000;
+        }
+        
+        video.media-player {
+            aspect-ratio: 16/9;
+        }
+        
+        .audio-visualizer {
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+        }
+        
+        .audio-bar {
+            width: 4px;
+            background: var(--primary-color);
+            border-radius: 2px;
+            transition: height 0.1s;
+        }
+        
+        .settings-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .settings-modal.active {
+            display: flex;
+        }
+        
+        .settings-content {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 400px;
+            width: 90%;
+        }
+        
+        .settings-content h2 {
+            margin-bottom: 1.5rem;
+        }
+        
+        .setting-item {
+            margin-bottom: 1.5rem;
+        }
+        
+        .setting-item label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .setting-item input,
+        .setting-item select {
+            width: 100%;
+            background: var(--surface-light);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+        
+        .settings-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            margin-top: 1.5rem;
+        }
+        
+        .settings-actions button {
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        .btn-cancel {
+            background: var(--surface-light);
+            color: var(--text-primary);
+        }
+        
+        .btn-save {
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .icon-button {
+            background: transparent;
+            border: none;
+            padding: 0.5rem;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        
+        .icon-button:hover {
+            background: var(--surface-light);
+        }
+        
+        .icon-button svg {
+            width: 24px;
+            height: 24px;
+            fill: var(--text-secondary);
+        }
+        
+        .connection-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--background);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+        
+        .connection-overlay.hidden {
+            display: none;
+        }
+        
+        .connection-form {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 400px;
+            width: 90%;
+        }
+        
+        .connection-form h2 {
+            margin-bottom: 0.5rem;
+        }
+        
+        .connection-form p {
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .form-group input {
+            width: 100%;
+            background: var(--surface-light);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        
+        .connect-btn {
+            width: 100%;
+            background: var(--primary-color);
+            border: none;
+            border-radius: 8px;
+            padding: 1rem;
+            color: white;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: background 0.2s;
+        }
+        
+        .connect-btn:hover {
+            background: var(--primary-dark);
+        }
+        
+        .connect-btn:disabled {
+            background: var(--surface-light);
+            cursor: not-allowed;
+        }
+        
+        .error-message {
+            color: var(--error);
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+            display: none;
+        }
+        
+        .error-message.visible {
+            display: block;
+        }
+        
+        .text-input-section {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 1rem;
+        }
+        
+        .text-input-form {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .text-input-form input {
+            flex: 1;
+            background: var(--surface-light);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+        
+        .text-input-form input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        
+        .text-input-form button {
+            background: var(--primary-color);
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 1.25rem;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .text-input-form button svg {
+            width: 20px;
+            height: 20px;
+            fill: white;
+        }
+        
+        /* PWA install prompt */
+        .install-prompt {
+            position: fixed;
+            bottom: 1rem;
+            left: 1rem;
+            right: 1rem;
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 1rem;
+            display: none;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            z-index: 100;
+        }
+        
+        .install-prompt.visible {
+            display: flex;
+        }
+        
+        .install-prompt p {
+            flex: 1;
+            font-size: 0.9rem;
+        }
+        
+        .install-prompt button {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        .install-btn {
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .dismiss-btn {
+            background: transparent;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <!-- Connection Overlay -->
+    <div class="connection-overlay" id="connectionOverlay">
+        <div class="connection-form">
+            <h2>Connect to Home Assistant</h2>
+            <p>Enter your Home Assistant connection details to get started.</p>
+            <div class="form-group">
+                <label for="haUrl">Home Assistant URL</label>
+                <input type="text" id="haUrl" placeholder="https://homeassistant.local:8123" autocomplete="url">
+            </div>
+            <div class="form-group">
+                <label for="accessToken">Long-Lived Access Token</label>
+                <input type="password" id="accessToken" placeholder="Enter your access token" autocomplete="current-password">
+            </div>
+            <div class="error-message" id="connectionError"></div>
+            <button class="connect-btn" id="connectBtn">Connect</button>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <header class="header">
+        <h1>Voice Assistant</h1>
+        <div class="header-actions">
+            <div class="status-indicator">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusText">Disconnected</span>
+            </div>
+            <button class="icon-button" id="settingsBtn" title="Settings">
+                <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <!-- Device Name Section -->
+        <section class="device-section">
+            <label for="deviceName">Device Name (for Home Assistant targeting)</label>
+            <div class="device-name-input">
+                <input type="text" id="deviceName" placeholder="Living Room Assistant" value="Voice Widget">
+                <button id="saveDeviceBtn">Save</button>
+            </div>
+        </section>
+
+        <!-- Voice Interaction Section -->
+        <section class="voice-section">
+            <button class="mic-button" id="micButton" title="Click to speak">
+                <svg class="mic-icon" viewBox="0 0 24 24">
+                    <path d="M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z"/>
+                </svg>
+            </button>
+            
+            <div class="voice-status" id="voiceStatus">Click the microphone or say the wake word</div>
+            
+            <div class="wakeword-toggle" id="wakewordToggle">
+                <div class="toggle-switch" id="wakewordSwitch"></div>
+                <span>Wake Word Detection</span>
+            </div>
+
+            <div class="audio-visualizer" id="audioVisualizer" style="display: none;">
+                <!-- Audio bars will be added dynamically -->
+            </div>
+        </section>
+
+        <!-- Transcript Section -->
+        <section class="transcript-section">
+            <h3>You Said</h3>
+            <p class="transcript-text" id="transcriptText">Waiting for input...</p>
+        </section>
+
+        <!-- Response Section -->
+        <section class="response-section">
+            <h3>Assistant Response</h3>
+            <p class="response-text empty" id="responseText">No response yet</p>
+        </section>
+
+        <!-- Text Input Section -->
+        <section class="text-input-section">
+            <form class="text-input-form" id="textInputForm">
+                <input type="text" id="textInput" placeholder="Type a message..." autocomplete="off">
+                <button type="submit" title="Send">
+                    <svg viewBox="0 0 24 24"><path d="M2,21L23,12L2,3V10L17,12L2,14V21Z"/></svg>
+                </button>
+            </form>
+        </section>
+
+        <!-- Media Section -->
+        <section class="media-section" id="mediaSection">
+            <h3>Media Player</h3>
+            <video class="media-player" id="videoPlayer" controls style="display: none;"></video>
+            <audio class="media-player" id="audioPlayer" controls style="display: none;"></audio>
+        </section>
+    </main>
+
+    <!-- Settings Modal -->
+    <div class="settings-modal" id="settingsModal">
+        <div class="settings-content">
+            <h2>Settings</h2>
+            <div class="setting-item">
+                <label for="settingsHaUrl">Home Assistant URL</label>
+                <input type="text" id="settingsHaUrl">
+            </div>
+            <div class="setting-item">
+                <label for="settingsWakeWord">Wake Word Model</label>
+                <select id="settingsWakeWord">
+                    <option value="hey_jarvis">Hey Jarvis</option>
+                    <option value="alexa">Alexa</option>
+                    <option value="ok_nabu">OK Nabu</option>
+                    <option value="hey_mycroft">Hey Mycroft</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label for="settingsSttTimeout">STT Timeout (seconds)</label>
+                <input type="number" id="settingsSttTimeout" value="15" min="5" max="60">
+            </div>
+            <div class="settings-actions">
+                <button class="btn-cancel" id="cancelSettings">Cancel</button>
+                <button class="btn-save" id="saveSettings">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PWA Install Prompt -->
+    <div class="install-prompt" id="installPrompt">
+        <p>Install Voice Assistant for easier access</p>
+        <button class="dismiss-btn" id="dismissInstall">Not now</button>
+        <button class="install-btn" id="installBtn">Install</button>
+    </div>
+
+    <!-- Hidden audio element for TTS playback -->
+    <audio id="ttsAudio" style="display: none;"></audio>
+
+    <script type="module" src="openwakeword/src/index.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
