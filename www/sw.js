@@ -1,5 +1,5 @@
 // Service Worker for Voice Assistant Widget PWA
-const CACHE_NAME = 'voice-widget-v2';
+const CACHE_NAME = 'voice-widget-v6';
 const ASSETS_TO_CACHE = [
     '/',
     '/index.html',

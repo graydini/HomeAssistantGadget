@@ -179,6 +179,7 @@ if (credentials.ha_url) {
             }
             
             const dataStr = data.toString();
+            console.log('Received message from HA');
             console.log('Received from HA:', dataStr.substring(0, 200) + (dataStr.length > 200 ? '...' : ''));
             
             try {
@@ -187,6 +188,7 @@ if (credentials.ha_url) {
                 // Handle auth_required from HA - send our server-side token
                 if (message.type === 'auth_required') {
                     console.log('HA requires auth, sending server-side access token');
+                    console.log('Token being sent:', credentials.access_token ? credentials.access_token.substring(0, 20) + '...' : 'NO TOKEN');
                     targetWs.send(JSON.stringify({
                         type: 'auth',
                         access_token: credentials.access_token

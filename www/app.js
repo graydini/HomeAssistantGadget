@@ -389,6 +389,13 @@ class VoiceAssistantWidget {
             if (event.data?.runner_data?.stt_binary_handler_id !== undefined) {
                 this.sttBinaryHandlerId = event.data.runner_data.stt_binary_handler_id;
                 console.log('STT binary handler ID:', this.sttBinaryHandlerId);
+                
+                // Resolve the pending pipeline promise now that we have the handler ID
+                if (this.pipelineResolve) {
+                    this.pipelineResolve();
+                    this.pipelineResolve = null;
+                    this.pipelineReject = null;
+                }
             }
             this.updateStatus('Pipeline started...', 'processing');
         } else if (event.type === 'run-end') {
@@ -463,17 +470,34 @@ class VoiceAssistantWidget {
             console.log('Available pipelines:', result);
             
             if (result.pipelines && result.pipelines.length > 0) {
-                // Use preferred pipeline or first available
-                const preferred = result.pipelines.find(p => p.id === result.preferred_pipeline);
-                this.config.pipelineId = preferred ? preferred.id : result.pipelines[0].id;
-                console.log('Using pipeline:', this.config.pipelineId);
+                // Store all pipelines for later use
+                this.availablePipelines = result.pipelines;
+                
+                // Find pipelines by capability
+                const voicePipeline = result.pipelines.find(p => p.stt_engine !== null);
+                const textPipeline = result.pipelines.find(p => p.id === result.preferred_pipeline) || 
+                                   result.pipelines.find(p => p.name.toLowerCase().includes('computer'));
+                
+                // Store pipeline IDs
+                this.config.voicePipelineId = voicePipeline ? voicePipeline.id : null;
+                this.config.textPipelineId = textPipeline ? textPipeline.id : result.pipelines[0].id;
+                
+                // Use text pipeline as default (for manual input)
+                this.config.pipelineId = this.config.textPipelineId;
+                
+                console.log('Voice pipeline:', this.config.voicePipelineId, 'Text pipeline:', this.config.textPipelineId);
+                console.log('Using default pipeline:', this.config.pipelineId);
             } else {
                 console.log('No pipelines found, will use default');
                 this.config.pipelineId = null;
+                this.config.voicePipelineId = null;
+                this.config.textPipelineId = null;
             }
         } catch (error) {
             console.error('Failed to get pipelines:', error);
             this.config.pipelineId = null;
+            this.config.voicePipelineId = null;
+            this.config.textPipelineId = null;
         }
     }
     
@@ -526,14 +550,16 @@ class VoiceAssistantWidget {
         }
         
         try {
-            // Get microphone access
-            this.audioStream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    sampleRate: 16000
-                }
-            });
+            // Get microphone access if not already available (from wake word detection)
+            if (!this.audioStream) {
+                this.audioStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 16000
+                    }
+                });
+            }
             
             this.isListening = true;
             this.updateStatus('Listening...', 'listening');
@@ -543,7 +569,7 @@ class VoiceAssistantWidget {
             this.startAudioAnalysis();
             
             // Start the assist pipeline with audio
-            await this.runAssistPipeline();
+            await this.runAssistPipeline(true);
             
         } catch (error) {
             console.error('Failed to start listening:', error);
@@ -569,26 +595,31 @@ class VoiceAssistantWidget {
         clearTimeout(this.sttTimeout);
     }
     
-    async runAssistPipeline() {
+    async runAssistPipeline(isVoiceInput = false) {
         try {
             // Subscribe to pipeline events
             this.pipelineSubscriptionId = ++this.messageId;
             this.sttBinaryHandlerId = null;
             
+            // Choose the appropriate pipeline
+            const pipelineId = isVoiceInput ? this.config.voicePipelineId : this.config.textPipelineId;
+            
             // Create the pipeline run request
             const pipelineRequest = {
                 id: this.pipelineSubscriptionId,
                 type: 'assist_pipeline/run',
-                start_stage: 'stt',
+                start_stage: isVoiceInput ? 'stt' : 'intent',
                 end_stage: 'tts',
-                input: {
+                input: isVoiceInput ? {
                     sample_rate: 16000
+                } : {
+                    text: '' // Will be filled by STT
                 }
             };
             
             // Add pipeline ID if available
-            if (this.config.pipelineId) {
-                pipelineRequest.pipeline = this.config.pipelineId;
+            if (pipelineId) {
+                pipelineRequest.pipeline = pipelineId;
             }
             
             // Set up handler for pipeline events
@@ -600,8 +631,12 @@ class VoiceAssistantWidget {
             console.log('Starting assist pipeline:', pipelineRequest);
             this.wsConnection.send(JSON.stringify(pipelineRequest));
             
-            // Start capturing audio and sending it
-            await this.startAudioStreaming();
+            // For voice input, wait for the run-start event to get the binary handler ID
+            if (isVoiceInput) {
+                await this.pendingPipelineEvents;
+                // Start capturing audio and sending it
+                await this.startAudioStreaming();
+            }
             
         } catch (error) {
             console.error('Pipeline error:', error);
@@ -848,7 +883,9 @@ class VoiceAssistantWidget {
     }
     
     async toggleWakeWord() {
+        console.log('Wake word toggle clicked, current state:', this.wakeWordEnabled);
         this.wakeWordEnabled = !this.wakeWordEnabled;
+        console.log('New wake word state:', this.wakeWordEnabled);
         
         if (this.wakeWordEnabled) {
             // Request microphone permission first
@@ -892,7 +929,14 @@ class VoiceAssistantWidget {
                     console.log('Wake word detected:', keyword);
                     this.startListening();
                 });
+                this.wakeWordDetector.on('ready', () => {
+                    console.log('Wake word engine ready');
+                });
+                this.wakeWordDetector.on('error', (error) => {
+                    console.error('Wake word engine error:', error);
+                });
                 await this.wakeWordDetector.start();
+                console.log('Wake word engine started');
                 this.updateStatus('Listening for wake word...', 'connected');
             } else {
                 // Fallback: simple audio level detection demo
