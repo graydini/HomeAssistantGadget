@@ -1,5 +1,5 @@
 {
-  "name": "claude-voice-widget",
+  "name": "home-assistant-voice-widget",
   "version": "1.0.0",
   "description": "Home Assistant Voice Assistant Widget with Wake Word Detection",
   "main": "server.js",

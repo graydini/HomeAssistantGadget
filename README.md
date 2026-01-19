@@ -1,4 +1,4 @@
-# Claude Voice Assistant Widget for Home Assistant
+# Home Assistant Voice Widget
 
 A self-contained voice assistant web interface that integrates with Home Assistant. It provides:
 
@@ -105,7 +105,7 @@ The widget uses these Home Assistant APIs:
 ## Project Structure
 
 ```
-ClaudeHA/
+home-assistant-voice-widget/
 ├── config.yaml          # Home Assistant add-on configuration
 ├── Dockerfile           # Container build file
 ├── package.json         # Node.js dependencies
@@ -182,7 +182,7 @@ Expected output:
 
 MIT License
 
-Copyright (c) 2024 Claude Voice Assistant Widget
+Copyright (c) 2024 Home Assistant Voice Widget
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

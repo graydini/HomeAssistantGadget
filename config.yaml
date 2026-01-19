@@ -1,8 +1,8 @@
 # Home Assistant Add-on Configuration
-name: "Claude Voice Assistant Widget"
+name: "Home Assistant Voice Widget"
 description: "A self-contained voice assistant web interface with wake word detection, STT/TTS integration, and media receiver functionality"
 version: "1.0.0"
-slug: "claude_voice_widget"
+slug: "home_assistant_voice_widget"
 init: false
 arch:
   - amd64
