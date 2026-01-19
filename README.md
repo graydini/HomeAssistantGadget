@@ -10,21 +10,23 @@ A self-contained voice assistant web interface that integrates with Home Assista
 
 ## Quick Start (Standalone Mode)
 
-1. **Install dependencies:**
+1. **Configure credentials:**
+   - Copy `credentials.ini.example` to `credentals.ini`
+   - Edit `credentals.ini` with your Home Assistant URL and access token
+
+2. **Install dependencies:**
    ```bash
    npm install
    ```
 
-2. **Start the server:**
+3. **Start the server:**
    ```bash
    npm start
    ```
 
-3. **Open the widget:**
+4. **Open the widget:**
    - Navigate to `http://localhost:8099` in your browser
-   - Enter your Home Assistant URL: `https://ha.baje.us`
-   - Enter your Long-Lived Access Token
-   - Click Connect
+   - The widget will automatically connect using the credentials from `credentals.ini`
 
 4. **Use the widget:**
    - Click the microphone button to speak
@@ -33,34 +35,18 @@ A self-contained voice assistant web interface that integrates with Home Assista
 
 ## Installing as Home Assistant Add-on
 
-### Method 1: Local Add-on (Recommended for Development)
-
-1. Copy this entire folder to your Home Assistant config directory:
-   ```bash
-   # On your Home Assistant machine
-   cd /config
-   mkdir -p addons/claude_voice_widget
-   # Copy all files from this project
-   ```
-
-2. Go to **Settings > Add-ons > Add-on Store**
-
-3. Click the three dots (⋮) and select **Repositories**
-
-4. Add your local repository or click **Check for updates**
-
-5. Find "Claude Voice Assistant Widget" and click **Install**
-
-6. Start the add-on and click **Open Web UI**
-
-### Method 2: Docker
-
-```bash
-docker build -t claude-voice-widget .
-docker run -p 8099:8099 claude-voice-widget
-```
+When installed as a Home Assistant add-on, the widget automatically receives credentials from Home Assistant and doesn't require manual configuration.
 
 ## Configuration
+
+### Credentials File (Standalone Mode)
+
+For local development, create a `credentals.ini` file in the project root:
+
+```ini
+HomeAssistantURL=https://your-ha-instance.com:8123
+AccessToken=your-long-lived-access-token
+```
 
 ### Widget Settings
 

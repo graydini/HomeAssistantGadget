@@ -39,14 +39,24 @@ class VoiceAssistantWidget {
     async init() {
         this.bindElements();
         this.bindEvents();
+        await this.loadServerConfig();
         this.loadConfig();
         this.initAudioVisualizer();
         this.registerServiceWorker();
         this.setupPWAInstall();
         
-        // Check if we have saved credentials
+        // Check if we have credentials from server or saved
         if (this.config.haUrl && this.config.accessToken) {
-            await this.connect();
+            const connected = await this.connect();
+            if (connected) {
+                this.elements.connectionOverlay.classList.add('hidden');
+            } else {
+                // Show connection overlay if auto-connect failed
+                this.elements.connectionOverlay.classList.remove('hidden');
+            }
+        } else {
+            // Show connection overlay for manual entry
+            this.elements.connectionOverlay.classList.remove('hidden');
         }
     }
     
@@ -127,7 +137,10 @@ class VoiceAssistantWidget {
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
-                this.config = { ...this.config, ...parsed };
+                // Only load non-credential config from localStorage
+                this.config.deviceName = parsed.deviceName || this.config.deviceName;
+                this.config.wakeWord = parsed.wakeWord || this.config.wakeWord;
+                this.config.sttTimeout = parsed.sttTimeout || this.config.sttTimeout;
                 this.elements.deviceName.value = this.config.deviceName;
             } catch (e) {
                 console.error('Failed to parse saved config:', e);
@@ -135,8 +148,45 @@ class VoiceAssistantWidget {
         }
     }
     
+    async loadServerConfig() {
+        try {
+            const response = await fetch('/api/config');
+            if (response.ok) {
+                const serverConfig = await response.json();
+                
+                // Set credentials from server
+                if (serverConfig.credentials) {
+                    this.config.haUrl = serverConfig.credentials.ha_url;
+                    this.config.accessToken = serverConfig.credentials.access_token;
+                }
+                
+                // Set HA URL from environment if available
+                if (serverConfig.ha_url) {
+                    this.config.haUrl = serverConfig.ha_url;
+                }
+                
+                // Set other options
+                if (serverConfig.options) {
+                    this.config.deviceName = serverConfig.options.device_name;
+                    this.config.wakeWord = serverConfig.options.wake_word;
+                    this.config.sttTimeout = serverConfig.options.stt_timeout;
+                }
+                
+                console.log('Loaded server config');
+            }
+        } catch (error) {
+            console.error('Failed to load server config:', error);
+        }
+    }
+    
     saveConfig() {
-        localStorage.setItem('voiceWidgetConfig', JSON.stringify(this.config));
+        // Only save non-sensitive config to localStorage
+        const configToSave = {
+            deviceName: this.config.deviceName,
+            wakeWord: this.config.wakeWord,
+            sttTimeout: this.config.sttTimeout
+        };
+        localStorage.setItem('voiceWidgetConfig', JSON.stringify(configToSave));
     }
     
     async handleConnect() {
@@ -183,10 +233,9 @@ class VoiceAssistantWidget {
     
     async connect() {
         try {
-            // Test the connection with a simple API call
-            const response = await fetch(`${this.config.haUrl}/api/`, {
+            // Test the connection with a simple API call through local proxy
+            const response = await fetch('/api/ha/', {
                 headers: {
-                    'Authorization': `Bearer ${this.config.accessToken}`,
                     'Content-Type': 'application/json'
                 }
             });
@@ -198,7 +247,7 @@ class VoiceAssistantWidget {
             const data = await response.json();
             console.log('Connected to Home Assistant:', data.message);
             
-            // Connect WebSocket
+            // Connect WebSocket through proxy
             await this.connectWebSocket();
             
             // Get available pipelines
@@ -216,7 +265,7 @@ class VoiceAssistantWidget {
     
     async connectWebSocket() {
         return new Promise((resolve, reject) => {
-            const wsUrl = this.config.haUrl.replace(/^http/, 'ws') + '/api/websocket';
+            const wsUrl = `ws://localhost:8099/ws/ha`;
             
             this.wsConnection = new WebSocket(wsUrl);
             
@@ -224,8 +273,12 @@ class VoiceAssistantWidget {
                 console.log('WebSocket connected');
             };
             
-            this.wsConnection.onmessage = (event) => {
-                const message = JSON.parse(event.data);
+            this.wsConnection.onmessage = async (event) => {
+                let data = event.data;
+                if (data instanceof Blob) {
+                    data = await data.text();
+                }
+                const message = JSON.parse(data);
                 this.handleWebSocketMessage(message, resolve, reject);
             };
             
@@ -249,13 +302,10 @@ class VoiceAssistantWidget {
     }
     
     handleWebSocketMessage(message, resolveConnect, rejectConnect) {
+        console.log('Received WebSocket message:', message);
         switch (message.type) {
             case 'auth_required':
-                // Send authentication
-                this.wsConnection.send(JSON.stringify({
-                    type: 'auth',
-                    access_token: this.config.accessToken
-                }));
+                console.log('Auth already sent by server');
                 break;
                 
             case 'auth_ok':
@@ -347,7 +397,16 @@ class VoiceAssistantWidget {
     
     async getAssistPipelines() {
         try {
-            const result = await this.sendMessage('assist_pipeline/pipeline/list');
+            const response = await fetch('/api/ha/assist/pipelines');
+            if (response.status === 404) {
+                console.log('Assist pipelines not available (404), using default');
+                this.config.pipelineId = 'default';
+                return;
+            }
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            const result = await response.json();
             console.log('Available pipelines:', result);
             
             if (result.pipelines && result.pipelines.length > 0) {
@@ -355,9 +414,12 @@ class VoiceAssistantWidget {
                 const preferred = result.pipelines.find(p => p.id === result.preferred_pipeline);
                 this.config.pipelineId = preferred ? preferred.id : result.pipelines[0].id;
                 console.log('Using pipeline:', this.config.pipelineId);
+            } else {
+                this.config.pipelineId = 'default';
             }
         } catch (error) {
             console.error('Failed to get pipelines:', error);
+            this.config.pipelineId = 'default';
         }
     }
     
@@ -543,10 +605,9 @@ class VoiceAssistantWidget {
     async processVoiceCommand(audioBase64) {
         try {
             // Use the conversation API with audio
-            const response = await fetch(`${this.config.haUrl}/api/conversation/process`, {
+            const response = await fetch('/api/ha/conversation/process', {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${this.config.accessToken}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
@@ -575,23 +636,10 @@ class VoiceAssistantWidget {
         this.updateStatus('Processing...', 'processing');
         
         try {
-            const response = await fetch(`${this.config.haUrl}/api/conversation/process`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${this.config.accessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    text: text,
-                    language: 'en'
-                })
+            const data = await this.sendMessage('conversation/process', {
+                text: text,
+                language: 'en'
             });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-            
-            const data = await response.json();
             console.log('Conversation response:', data);
             
             // Extract response text
@@ -626,10 +674,9 @@ class VoiceAssistantWidget {
     
     async generateAndPlayTTS(text) {
         try {
-            const response = await fetch(`${this.config.haUrl}/api/tts_get_url`, {
+            const response = await fetch('/api/ha/tts_get_url', {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${this.config.accessToken}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
@@ -677,6 +724,17 @@ class VoiceAssistantWidget {
         this.wakeWordEnabled = !this.wakeWordEnabled;
         
         if (this.wakeWordEnabled) {
+            // Request microphone permission first
+            try {
+                this.audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                console.log('Microphone access granted');
+            } catch (error) {
+                console.error('Microphone access denied:', error);
+                alert('Microphone access is required for wake word detection');
+                this.wakeWordEnabled = false;
+                return;
+            }
+            
             this.elements.wakewordSwitch.classList.add('active');
             await this.startWakeWordDetection();
         } else {
@@ -686,6 +744,13 @@ class VoiceAssistantWidget {
     }
     
     async startWakeWordDetection() {
+        // Wait for WakeWordEngine to load
+        let attempts = 0;
+        while (typeof WakeWordEngine === 'undefined' && attempts < 50) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+        
         try {
             // Initialize OpenWakeWord (WASM version)
             // Note: This requires the openwakeword_wasm library

@@ -1,4 +1,5 @@
-import * as ort from 'onnxruntime-web';
+// import * as ort from 'onnxruntime-web';
+const ort = window.ort;
 
 export const MODEL_FILE_MAP = {
     alexa: 'alexa_v0.1.onnx',

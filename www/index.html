@@ -7,8 +7,8 @@
     <meta name="description" content="Home Assistant Voice Assistant Widget">
     <title>Voice Assistant Widget</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/png" href="icons/icon-192.png">
-    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+    <link rel="apple-touch-icon" href="icons/icon.svg">
     <style>
         :root {
             --primary-color: #03a9f4;
@@ -629,7 +629,7 @@
 </head>
 <body>
     <!-- Connection Overlay -->
-    <div class="connection-overlay" id="connectionOverlay">
+    <div class="connection-overlay hidden" id="connectionOverlay">
         <div class="connection-form">
             <h2>Connect to Home Assistant</h2>
             <p>Enter your Home Assistant connection details to get started.</p>
@@ -758,6 +758,7 @@
     <!-- Hidden audio element for TTS playback -->
     <audio id="ttsAudio" style="display: none;"></audio>
 
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/ort.min.js"></script>
     <script type="module" src="openwakeword/src/index.js"></script>
     <script src="app.js"></script>
 </body>
