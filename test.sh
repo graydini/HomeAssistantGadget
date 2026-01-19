@@ -1,10 +1,17 @@
 #!/bin/bash
 # Test script for Voice Assistant Widget
 
-BASE_URL="https://ha.baje.us"
-TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI2MzhiNzM2ZjBjYTA0Mzk3YjExYjg1NjRlNTBlYmQ1MCIsImlhdCI6MTc2ODQ2NzU3MCwiZXhwIjoyMDgzODI3NTcwfQ.vS4QMKZuCcyYBHpzeKPSKqvFlXFS8XLi81zNrk6hA2Q"
+# Load credentials from credentals.ini
+if [ -f "credentals.ini" ]; then
+    BASE_URL=$(grep "HomeAssistantURL" credentals.ini | cut -d'=' -f2 | tr -d ' ')
+    TOKEN=$(grep "AccessToken" credentals.ini | cut -d'=' -f2 | tr -d ' ')
+else
+    echo "Error: credentals.ini not found. Please copy credentials.ini.example to credentals.ini and configure it."
+    exit 1
+fi
 
 echo "=== Voice Assistant Widget Test Suite ==="
+echo "Testing against: $BASE_URL"
 echo ""
 
 # Test 1: API Connection

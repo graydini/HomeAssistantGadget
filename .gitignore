@@ -17,6 +17,11 @@ Thumbs.db
 *.log
 npm-debug.log*
 
+# Audio files (may contain sensitive voice data)
+*.wav
+*.mp3
+*.ogg
+
 # Build output
 dist/
 build/
